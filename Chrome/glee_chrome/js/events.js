@@ -324,7 +324,8 @@ Glee.Events = {
             url = url.replace('window.open', 'Glee.Browser.openURLInNewTab');
 
             // Chrome hack: location.href = url doesn't work properly for all bookmarklets in Chrome
-            if (url.substring(len - 3, len) == '();')
+
+            if (url.substring(len - 3, len) == '();' || url.substring(len - 7, len) == '%28%29)')
                 location.href = url;
             else
                 eval(unescape(url.substring(11)));
