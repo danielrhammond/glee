@@ -6,7 +6,6 @@
  * Copyright (c) 2011 Sameer Ahuja
  *
  **/
-
 var Glee = {
 
     defaults: {
@@ -33,90 +32,98 @@ var Glee = {
         windowBottomDiff: null
     },
 
-    options: {
-        // should gleeBox run?
-        status: true,
+    status: true,
 
+    options: {
         // Keydown code of shortcut key to launch gleeBox
         shortcutKey: 71,
-
         // Keydown code of shortcut key to launch tab manager
-        tabShortcutKey: 190,
-
+        tabManagerShortcutKey: 190,
         // Size of gleeBox (small, medium, large)
         size: 'medium',
-
         // Position of gleeBox (top, middle, bottom)
         position: 'bottom',
-
         // Scrolling Animation speed
         scrollingSpeed: 500,
-
-        hyperMode: false,
-
+        hyper: false,
         // Enable/disable global shortcut for tab manager
-        tabShortcutStatus: true,
-
+        tabManager: true,
         // Enable/disable ESP (default scrapers)
-        espStatus: true,
-
+        esp: true,
         // Enable/disable bookmark search
-        bookmarkSearchStatus: false,
-
+        searchBookmarks: false,
         // Search Engine URL
-        searchEngineUrl: 'http://www.google.com/search?q=',
-
+        searchEngine: 'http://www.google.com/search?q=',
         commandEngine: 'yubnub',
-
         quixUrl: 'http://quixapp.com/quix.txt',
-
-        outsideScrollingStatus: false,
-
+        outsideScrolling: false,
         upScrollingKey: 87, // w
-
         downScrollingKey: 83, // s
-
-        theme: 'GleeThemeDefault'
+        theme: 'GleeThemeDefault',
+        // URL blacklist
+        disabledUrls: [
+            'mail.google.com',
+            'wave.google.com',
+            'mail.yahoo.com'
+        ],
+        // (?) Scraper Commands
+        scrapers: [
+            {
+                command: '?',
+                nullMessage: 'Could not find any input elements on the page.',
+                selector: 'input:enabled:not(#gleeSearchField),textarea',
+                cssStyle: 'GleeReaped'
+            },
+            {
+                command: 'img',
+                nullMessage: 'Could not find any linked images on the page.',
+                selector: 'a > img',
+                cssStyle: 'GleeReaped'
+            },
+            {
+                command: 'h',
+                nullMessage: 'Could not find any headings on the page.',
+                selector: 'h1,h2,h3',
+                cssStyle: 'GleeReaped'
+            },
+            {
+                command: 'a',
+                nullMessage: 'No links found on the page',
+                selector: 'a',
+                cssStyle: 'GleeReaped'
+            }
+        ],
+        // ESP Visions
+        espVisions: [
+            {
+                url: 'google.com/search',
+                selector: 'h3:not(ol.nobr>li>h3),a:contains(Next)'
+            },
+            {
+                url: 'bing.com/search',
+                selector: 'div.sb_tlst'
+            }
+        ]
     },
-
     // smooth document scroller
     scroller: null,
-
     // if any text is selected when gleeBox is activated, it acts as the default query for cmd engine
     defaultQuery: null,
-
     // last query executed in gleeBox
     lastQuery: null,
-
     // last query executed in jQuery mode
     lastjQuery: null,
-
     isSearching: false,
-
     isEspRunning: false,
-
     isDOMSearchRequired: true,
-
     commandMode: false,
-
     inspectMode: false,
-
     // Currently selected element
     selectedElement: null,
-
     // Current URL where gleeBox should go
     URL: null,
-
     // Bookmarks returned for a search
     bookmarks: [],
-
-    // URL blacklist
-    disabledUrls: [
-        'mail.google.com',
-        'wave.google.com',
-        'mail.yahoo.com'
-    ],
-
     // (!) Page commands
     commands: [
         {
@@ -210,8 +217,13 @@ var Glee = {
         },
         {
             name: 'ext',
-            method: 'viewWebStore',
-            description: 'Open the Chrome Web Store'
+            method: 'viewExtensions',
+            description: 'Open the Extensions Page'
+        },
+        {
+            name: 'extensions',
+            method: 'viewExtensions',
+            description: 'Open the Extensions Page'
         },
         {
             name: 'snap',
@@ -225,47 +237,6 @@ var Glee = {
         }
     ],
 
-    // (?) Scraper Commands
-
-    scrapers: [
-        {
-            command: '?',
-            nullMessage: 'Could not find any input elements on the page.',
-            selector: 'input:enabled:not(#gleeSearchField),textarea',
-            cssStyle: 'GleeReaped'
-        },
-        {
-            command: 'img',
-            nullMessage: 'Could not find any linked images on the page.',
-            selector: 'a > img',
-            cssStyle: 'GleeReaped'
-        },
-        {
-            command: 'h',
-            nullMessage: 'Could not find any headings on the page.',
-            selector: 'h1,h2,h3',
-            cssStyle: 'GleeReaped'
-        },
-        {
-            command: 'a',
-            nullMessage: 'No links found on the page',
-            selector: 'a',
-            cssStyle: 'GleeReaped'
-        }
-        ],
-
-    // ESP Visions
-    espModifiers: [
-        {
-            url: 'google.com/search',
-            selector: 'h3:not(ol.nobr>li>h3),a:contains(Next)'
-        },
-        {
-            url: 'bing.com/search',
-            selector: 'div.sb_tlst'
-        }
-    ],
-
     // Cache for jQuery objects, commands and other objects
     cache: {
         jBody: null,
@@ -276,7 +247,7 @@ var Glee = {
     init: function() {
         // Chrome hack: disable status while options are received
         if (IS_CHROME)
-            Glee.options.status = false;
+            Glee.status = false;
 
         // get options from cache in background.html
         Glee.Browser.getOptions();
@@ -324,8 +295,7 @@ var Glee = {
     },
 
     open: function() {
-        if (!Glee.isVisible())
-        {
+        if (!Glee.isVisible()) {
             Glee.$searchBox.fadeIn(150, LinkReaper.cacheLinks);
             Glee.fireEsp();
         }
@@ -338,27 +308,31 @@ var Glee = {
         Glee.focus();
     },
 
-    // called when options are returned by background.html
-    applyOptions: function() {
-        Glee.applyTheme();
+    // response returned by background.html
+    applyOptions: function(options) {
+        for (var option in options) {
+            if (parseInt(options[option]))
+                Glee.options[option] = parseInt(options[option]);
+            else
+                Glee.options[option] = options[option];
+        }
+        // check domain if status is true
+        if (!Glee.shouldRunOnCurrentUrl())
+            Glee.status = false;
+        else
+            Glee.status = true;
 
-        // only enable list manager in Chrome
-        if (IS_CHROME && Glee.ListManager != undefined)
+        Glee.applyTheme();
+        if (Glee.ListManager)
             Glee.ListManager.applyTheme();
 
-        // Size
-        try {
-            Glee.$searchField.removeClass('gleeSmallSize gleeMediumSize gleeLargeSize');
-            Glee.$searchField.addClass('glee' + Glee.options.size.capitalize() + 'Size');
-        }
-        catch (e) {}
+        Glee.applySize();
 
         // Hyper mode
-        if (Glee.options.status && Glee.options.hyperMode) {
+        if (Glee.status && Glee.options.hyper)
             Glee.getHyperized();
-        }
 
-        if (Glee.options.outsideScrollingStatus)
+        if (Glee.options.outsideScrolling)
             Glee.Events.attachOutsideScrollingListener();
         else
             Glee.Events.detachOutsideScrollingListener();
@@ -372,8 +346,7 @@ var Glee = {
     },
 
     getHyperized: function() {
-        if (Glee.getEspSelector())
-        {
+        if (Glee.getEspSelector()) {
             Glee.open();
             Glee.lastQuery = null;
         }
@@ -438,6 +411,19 @@ var Glee = {
             this.$searchField.removeClass(Glee.defaults.themes.join(' '));
         }
         catch (e) {} // just to prevent errors popping up in safari. TODO: find why they come up
+    },
+
+    applySize: function() {
+        try {
+            var sizeClass = 'glee' + Glee.options.size.capitalize() + 'Size';
+            this.$searchField.removeClass('gleeSmallSize gleeMediumSize gleeLargeSize');
+            this.$searchBox.removeClass('gleeSmallSize gleeMediumSize gleeLargeSize');
+            this.$searchField.addClass(sizeClass);
+            this.$searchBox.addClass(sizeClass);
+        }
+        catch (e) {
+            console.log(e);
+        }
     },
 
     isVisible: function() {
@@ -550,6 +536,7 @@ var Glee = {
             $this = $(this);
             if (!Utils.isVisible(this))
                 return;
+
             LinkReaper.selectedLinks.push(this);
             LinkReaper.selectedLinks = Utils.sortElementsByPosition(LinkReaper.selectedLinks);
             $this.addClass(scraper.cssStyle);
@@ -566,8 +553,7 @@ var Glee = {
 
     setState: function(value, type) {
         // in case of element
-        if (type === 'el')
-        {
+        if (type === 'el') {
             // value is the element here
             if (value && value != undefined) {
                 var state = new ElementState(value);
@@ -580,14 +566,12 @@ var Glee = {
                 return true;
             }
 
-            else
-            {
+            else {
                 var text = this.value();
                 this.selectedElement = null;
 
                 // if it is a URL, open it
-                if (Utils.isURL(text))
-                {
+                if (Utils.isURL(text)) {
                     this.description('Go to ' + text, true);
                     var regex = new RegExp('((https?|ftp|file):((//)|(\\\\))+)');
                     if (!text.match(regex))
@@ -597,8 +581,7 @@ var Glee = {
                 }
 
                 // bookmark search, if enabled
-                else if (this.options.bookmarkSearchStatus)
-                {
+                else if (this.options.searchBookmarks) {
                     // emptying the bookmarks array
                     this.bookmarks = [];
                     this.Browser.isBookmark(text); // check if the text matches a bookmark
@@ -614,45 +597,39 @@ var Glee = {
             }
         }
 
-        // set state for bookmark
-        else if (type === 'bookmark') // value is the bookmark no. in Glee.bookmarks
-        {
+        // set state for bookmark. value is the bookmark no. in Glee.bookmarks
+        else if (type === 'bookmark') {
             this.description('Open bookmark (' + (value + 1) + ' of '+ (this.bookmarks.length - 1) + '): ' + this.bookmarks[value].title, true);
             this.setURL(this.bookmarks[value].url);
         }
 
-        // set state for bookmarklet
-        else if (type === 'bookmarklet') // value is the bookmarklet returned
-        {
+        // set state for bookmarklet. value is the bookmarklet returned
+        else if (type === 'bookmarklet') {
             this.description('Closest matching bookmarklet: ' + value.title + ' (press enter to execute)', true);
             this.setURL(value, '');
         }
 
-        // search web
-        else if (type === 'search') // value is the text query
-        {
+        // search web. value is the text query
+        else if (type === 'search') {
             this.description('Search for ' + value, true);
-            this.setURL(Glee.options.searchEngineUrl + value);
+            this.setURL(Glee.options.searchEngine + value);
         }
 
-        // display a message
-        else if (type === 'msg') // value is the message to be displayed
-        {
+        // display a message. value is the message to be displayed
+        else if (type === 'msg') {
             this.description(value);
             this.setURL('');
         }
 
         // return to default state.
-        else
-        {
+        else {
             this.description(Glee.defaults.nullStateMessage);
             this.setURL('');
         }
     },
 
     getNextBookmark: function() {
-        if (this.bookmarks.length > 1)
-        {
+        if (this.bookmarks.length > 1) {
             if (this.currentResultIndex == this.bookmarks.length - 1)
                 this.currentResultIndex = 0;
             else
@@ -669,8 +646,7 @@ var Glee = {
     },
 
     getPrevBookmark: function() {
-        if (this.bookmarks.length > 1)
-        {
+        if (this.bookmarks.length > 1) {
             if (this.currentResultIndex == 0)
                 this.currentResultIndex = this.bookmarks.length - 1;
             else
@@ -688,13 +664,14 @@ var Glee = {
 
     getEspSelector: function() {
         var url = document.location.href;
-        var len = Glee.espModifiers.length;
+        var len = Glee.options.espVisions.length;
         var sel = [];
-        for (var i = 0; i < len; i++)
-        {
-            if (url.indexOf(Glee.espModifiers[i].url) != -1)
-                sel[sel.length] = Glee.espModifiers[i].selector;
+
+        for (var i = 0; i < len; i++) {
+            if (url.indexOf(Glee.options.espVisions[i].url) != -1)
+                sel[sel.length] = Glee.options.espVisions[i].selector;
         }
+
         if (sel.length != 0)
             return sel.join(',');
         else // search for any default selector defined by meta tag in current page
@@ -702,12 +679,11 @@ var Glee = {
     },
 
     fireEsp: function() {
-        if (!Glee.options.espStatus)
+        if (!Glee.options.esp)
             return false;
         Glee.isEspRunning = true;
         var selStr = Glee.getEspSelector();
-        if (selStr)
-        {
+        if (selStr) {
             // Temporary scraper object
             var tempScraper = {
                 nullMessage: '',
@@ -732,8 +708,7 @@ var Glee = {
 
         var boxHeight = Glee.defaults.windowBottomDiff + (target.height() ? target.height() : 50);
 
-        if (target.length != 0)
-        {
+        if (target.length != 0) {
             var targetOffsetTop = target.offset().top;
 
             // if the element is above / below the current visible view, scroll
@@ -742,8 +717,7 @@ var Glee = {
                 scroll = true;
 
             // TODO: Set scroll to true if the element is overlapping with gleeBox
-            if (scroll)
-            {
+            if (scroll) {
                 // We keep the scroll such that the element stays a little away from
                 // the top.
                 var targetOffset = targetOffsetTop - 70;
@@ -782,7 +756,6 @@ var Glee = {
             Glee.isSearching = true;
             Glee.$searchActivity.html('searching');
         }
-
         else {
             Glee.isSearching = false;
             Glee.$searchActivity.html('');
@@ -817,12 +790,10 @@ var Glee = {
     },
 
     getCommandEngineSyntax: function(c) {
-        if (Glee.options.commandEngine === 'yubnub') {
+        if (Glee.options.commandEngine === 'yubnub')
             return 'http://yubnub.org/parser/parse?command=' + c;
-        }
-        else {
+        else
              return 'http://quixapp.com/go/?c=' + encodeURIComponent(c);
-        }
     },
 
     // add command to recently executed commands cache
@@ -830,28 +801,28 @@ var Glee = {
         if (value === undefined)
             value = Glee.value();
         var len = this.cache.commands.length;
+
         // is command already present? if yes, then move it to beginning of cache
         var index = $.inArray(value, Glee.cache.commands);
-        if (index != -1)
-        {
+        if (index != -1) {
             // remove command
             Glee.cache.commands.splice(index, 1);
             // add command to beginning
             Glee.cache.commands.unshift(value);
         }
-        else
-        {
+        else {
             if (len == Glee.defaults.cacheSize)
                 this.cache.commands.pop();
             this.cache.commands.unshift(value);
         }
+
         this.$searchField.setOptions({
             data: Glee.cache.commands
         });
-        this.Browser.updateBackgroundCommandCache();
+        this.Browser.setBackgroundCommandCache();
     },
 
-    updateCommandCache: function(commands) {
+    setCommandCache: function(commands) {
         this.cache.commands = commands;
 
         try {
@@ -871,22 +842,21 @@ var Glee = {
         // attach the window Listener
         $(window).bind('keydown', function(e) {
             var target = e.target || e.srcElement;
-            if (Glee.options.status && Glee.options.status != 0)
-            {
-                if (!Utils.elementCanReceiveUserInput(target) || e.altKey)
-                {
+            if (Glee.status) {
+                if (!Utils.elementCanReceiveUserInput(target) || e.altKey) {
                     if (target.id === 'gleeSearchField')
                         return true;
 
-                    if (e.keyCode == Glee.options.shortcutKey || (e.keyCode == Glee.options.tabShortcutKey && Glee.options.tabShortcutStatus))
-                    {
+                    if (e.keyCode === Glee.options.shortcutKey ||
+                        (e.keyCode === Glee.options.tabManagerShortcutKey && Glee.options.tabManager)) {
+
                         if (e.metaKey || e.ctrlKey || e.shiftKey)
                             return true;
                         e.preventDefault();
 
-                        if (e.keyCode == Glee.options.shortcutKey)
+                        if (e.keyCode === Glee.options.shortcutKey)
                             Glee.open();
-                        else if (IS_CHROME)
+                        else if (Glee.Browser.openTabManager)
                             Glee.Browser.openTabManager();
                     }
                 }
@@ -897,8 +867,7 @@ var Glee = {
 
     // select the top most visible element (if any elements are highlighted)
     selectTopElement: function() {
-        if (Glee.isEspRunning && Glee.selectedElement)
-        {
+        if (Glee.isEspRunning && Glee.selectedElement) {
             LinkReaper.selectedLinks = Utils.sortElementsByPosition(LinkReaper.selectedLinks);
             LinkReaper.unHighlight(Glee.selectedElement);
             Glee.selectedElement = LinkReaper.getFirst();
@@ -910,8 +879,7 @@ var Glee = {
             }
         }
 
-        else if (!Glee.isCommand() && !Glee.isEmpty())
-        {
+        else if (!Glee.isCommand() && !Glee.isEmpty()) {
             LinkReaper.reapLinks(Glee.value(), true);
             Glee.selectedElement = LinkReaper.getFirst();
         }
@@ -925,10 +893,9 @@ var Glee = {
      *  @return {boolean} If found, returns false.
      */
     shouldRunOnCurrentUrl: function() {
-        var len = Glee.disabledUrls.length;
-        for (var i = 0; i < len; i++)
-        {
-            if (location.href.indexOf(Glee.disabledUrls[i]) != -1)
+        var len = Glee.options.disabledUrls.length;
+        for (var i = 0; i < len; i++) {
+            if (location.href.indexOf(Glee.options.disabledUrls[i]) != -1)
                 return false;
         }
         return true;
@@ -938,6 +905,5 @@ var Glee = {
 $(document).ready(function() {
     if (!IS_CHROME && window !== window.top)
         return;
-
     Glee.init();
 });

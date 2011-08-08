@@ -11,9 +11,9 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.2</string>
+	<string>2.2.1</string>
 	<key>CFBundleVersion</key>
-	<string>2.0.2</string>
+	<string>2.2.1</string>
 	<key>Chrome</key>
 	<dict>
 		<key>Global Page</key>
@@ -25,21 +25,21 @@
 		<dict>
 			<key>Start</key>
 			<array>
-				<string>js/jquery.js</string>
-				<string>js/jquery.autocomplete.js</string>
+				<string>js/libs/jquery.js</string>
+				<string>js/libs/jquery.autocomplete.js</string>
 				<string>js/glee.js</string>
 				<string>js/events.js</string>
-				<string>js/safari_browser.js</string>
-				<string>js/safari_page_cmds.js</string>
-				<string>js/LinkReaper.js</string>
-				<string>js/SelectorGenerator.js</string>
+				<string>js/safari/browser.js</string>
+				<string>js/safari/pagecmds.js</string>
+				<string>js/linkreaper.js</string>
+				<string>js/libs/selectorgenerator.js</string>
 				<string>js/logger.js</string>
-				<string>js/SmoothScroller.js</string>
+				<string>js/libs/smoothscroller.js</string>
 				<string>js/injectcss.js</string>
-				<string>js/LinkReaper.js</string>
-				<string>js/ElementState.js</string>
-				<string>js/Utils.js</string>
-				<string>js/page_cmds.js</string>
+				<string>js/elementstate.js</string>
+				<string>js/libs/utils.js</string>
+				<string>js/pagecmds.js</string>
+				<string>js/listmanager.js</string>
 			</array>
 		</dict>
 		<key>Stylesheets</key>
@@ -47,6 +47,7 @@
 			<string>css/glee.css</string>
 			<string>css/themes.css</string>
 			<string>css/jquery.autocomplete.css</string>
+			<string>css/listmanager.css</string>
 		</array>
 	</dict>
 	<key>Description</key>

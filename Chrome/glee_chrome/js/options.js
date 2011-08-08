@@ -1,98 +1,188 @@
-var prefs = {};
+var options = {};
 var textfieldTimer = null;
 var scroller;
 
-function addURL(value) {
-    prefs.disabledUrls.push(value);
-    saveOption('disabledUrls', prefs.disabledUrls);
+$(document).ready(function() {
+    getOptions(initOptions);
+});
+
+/**
+ * Initializes Options UI
+ * @param {Object} response Options to apply
+ */
+function initOptions(response) {
+    options = response;
+    console.log(options);
+    for (var option in options) {
+
+        if (option === 'upScrollingKey' ||
+        option === 'downScrollingKey') {
+            var $scrollKey = $('[name=scrollingKey]');
+            if (options.upScrollingKey == 75)
+                $scrollKey.get(1).checked = true;
+            else
+                $scrollKey.get(0).checked = true;
+        }
+
+        else if (option === 'commandEngine') {
+            if (options[option] === 'quix')
+                $('#quixUrl').show();
+            $('[value=' + options[option] +']').prop('checked', true);
+        }
+
+        else if (option === 'shortcutKey') {
+            var $shortcutKeyCode = $('[name=shortcutKeyCode]').text(options[option]);
+            KeyCombo.init($('[name=shortcutKey]').get(0), $shortcutKeyCode.get(0));
+        }
+
+        else if (option === 'tabManagerShortcutKey') {
+            var $shortcutKeyCode = $('[name=tabManagerShortcutKeyCode]').text(options[option]);
+            KeyCombo.init($('[name=tabManagerShortcutKey]').get(0), $shortcutKeyCode.get(0));
+        }
+
+        else if (option === 'disabledUrls') {
+            var len = options[option].length;
+            for (var i = 0; i < len; i++)
+                addItem('disabledUrl', [options[option][i]]);
+            continue;
+        }
+
+        else if (option === 'scrapers') {
+            var len = options.scrapers.length;
+            // last element is a string only containing a ,
+            for (var i = 0; i < len; i++)
+                addItem('scraper', [options.scrapers[i].command, options.scrapers[i].selector]);
+            continue;
+        }
+
+        else if (option === 'espVisions') {
+            var len = options.espVisions.length;
+            for (var i = 0; i < len; i++)
+                addItem('espVision', [options.espVisions[i].url, options.espVisions[i].selector]);
+            continue;
+        }
+
+        else {
+            var $el = $('[name=' + option + ']');
+            var el = $el.get(0);
+            if ($el.length === 0)
+                continue;
+
+            if (el.type === 'radio') {
+                var radio = $el.filter('[value=' + options[option] +']');
+                if (radio.length != 0) {}
+                    radio.prop('checked', true);
+            }
+
+            else if (el.type === 'checkbox') {
+                if (options[option] != false)
+                    $el.prop('checked', true);
+            }
+
+            else if (el.type === 'text') {
+                if (options[option] != undefined)
+                    el.value = options[option];
+            }
+        }
+    }
+    if (IS_CHROME) {
+        setSyncUI();
+        bg_window = getBackgroundPage();
+    }
+    attachListeners();
 }
 
+/**
+ * Save disabled URL to options
+ * @param {String} Disabled URL to add
+ */
+function addDisabledUrl(value) {
+    options.disabledUrls.push(value);
+    saveOption('disabledUrls', options.disabledUrls);
+}
+
+/**
+ * Save Scraper to options
+ * @param {Object} value Scraper object to add. e.g.: {command:'?', selector:'input'}
+ */
 function addScraper(value) {
-    prefs.scrapers.push(value);
-    saveOption('scrapers', prefs.scrapers);
+    options.scrapers.push(value);
+    saveOption('scrapers', options.scrapers);
 }
 
-function addESP(value) {
-    prefs.espModifiers.push(value);
-    saveOption('espModifiers', prefs.espModifiers);
+/**
+ * Save Esp Vision to options
+ * @param {Object} value Esp Vision object to add. e.g.: {url:'http://google.com', selector:'a'}
+ */
+function addEspVision(value) {
+    options.espVisions.push(value);
+    saveOption('espVisions', options.espVisions);
 }
 
-function addItem(type, value1, value2, shouldSave) {
-    var listOfItems;
-    var lastEl;
+/**
+ * Add item (disabled URL, scraper or esp vision) to UI and save it to options
+ * @param {String} type Type of item to add. Valid values are: disabledUrl, espVision and scraper
+ * @param {Array} values Array containing the values for the item
+ * @param {Boolean} save If set to true, item is also saved to options. Else, it is only added to UI
+ */
+function addItem(type, values, save) {
     var content;
-    var no = $('li.' + type).length;
+    var index = $('li.' + type).length;
 
     var container = $('<li>', {
-       id: type + no,
-       className: type,
+       id: type + index,
+       'class': type,
        tabIndex: 0
     });
 
     switch (type) {
-        case 'domain':
+        case 'disabledUrl':
+            var disabledUrl = $('#addDisabledUrlValue').get(0);
 
-            var domainName = document.getElementById('add_domain');
-
-            if (!value1)
-            {
-                value1 = domainName.value;
-                domainName.value = '';
+            if (!values) {
+                values = [disabledUrl.value];
+                disabledUrl.value = '';
             }
 
-            if (validateURL(value1))
-            {
-                listOfItems = document.getElementById('domains');
-                lastEl = document.getElementById('addDomainLI');
-
+            if (validateDisabledUrl(values[0])) {
                 content = $('<span>', {
-                    className: 'domain-name',
-                    html: value1
+                    'class': 'disabledUrlValue',
+                    html: values[0]
                 });
-
                 container.append(content);
 
-                if (shouldSave) {
-                    addURL(value1);
-                }
+                if (save)
+                    addDisabledUrl(values[0]);
             }
-
             else
                 return false;
 
             break;
 
         case 'scraper':
-            var scraperName = document.getElementById('add-scraper-name');
-            var scraperSel = document.getElementById('add-scraper-selector');
-
-            if (!value1)
-            {
-                value1 = scraperName.value;
-                value2 = scraperSel.value;
+            var scraperName = $('#addScraperName').get(0);
+            var scraperSelector = $('#addScraperSelector').get(0);
+            if (!values) {
+                values = [scraperName.value, scraperSelector.value];
                 scraperName.value = '';
-                scraperSel.value = '';
+                scraperSelector.value = '';
             }
 
-            if (validateScraper(value1, value2))
-            {
-                listOfItems = document.getElementById('scraper-commands');
-                lastEl = document.getElementById('addScraper');
-
+            if (validateScraper(values)) {
                 var contentName = $('<span>', {
-                    className: 'scraper-name',
-                    html: value1
+                    'class': 'scraperName',
+                    html: values[0]
                 });
 
                 var contentSelector = $('<span>', {
-                    className: 'scraper-sel selector',
-                    html: value2
+                    'class': 'scraperSelector selector',
+                    html: values[1]
                 });
 
-                var prefix = $("<span class='scraper-prefix'>?</span>");
+                var prefix = $("<span class='scraperPrefix'>?</span>");
 
                 var separator = $('<div>', {
-                    className: 'separator'
+                    'class': 'separator'
                 });
 
                 container.append(prefix)
@@ -100,228 +190,242 @@ function addItem(type, value1, value2, shouldSave) {
                 .append(separator)
                 .append(contentSelector);
 
-                if (shouldSave) {
-                    addScraper({ command: value1, selector: value2, cssStyle: 'GleeReaped', nullMessage: 'Could not find any elements' });
-                }
+                if (save)
+                    addScraper({
+                        command: values[0],
+                        selector: values[1],
+                        cssStyle: 'GleeReaped',
+                        nullMessage: 'Could not find any elements'
+                    });
             }
-
             else
                 return false;
 
             break;
 
-        case 'esp':
-            var espUrl = document.getElementById('add-esp-url');
-            var espSel = document.getElementById('add-esp-selector');
+        case 'espVision':
+            var espUrl = $('#addEspUrl').get(0);
+            var espSelector = $('#addEspSelector').get(0);
 
-            if (!value1)
-            {
-                value1 = espUrl.value;
-                value2 = espSel.value;
+            if (!values) {
+                values = [espUrl.value, espSelector.value];
                 espUrl.value = '';
-                espSel.value = '';
+                espSelector.value = '';
             }
 
-            if (validateEspModifier(value1, value2))
-            {
-                listOfItems = document.getElementById('esp-modifiers');
-                lastEl = document.getElementById('addEspModifier');
-
+            if (validateEspVision(values)) {
                 var contentName = $('<span>', {
-                    className: 'esp-url',
-                    html: value1
+                    'class': 'espUrl',
+                    html: values[0]
                 });
 
                 var contentSelector = $('<span>', {
-                    className: 'esp-sel selector',
-                    html: value2
+                    'class': 'espSelector selector',
+                    html: values[1]
                 });
 
                 var separator = $('<div>', {
-                    className: 'separator'
+                    'class': 'separator'
                 });
 
                 container.append(contentName)
                 .append(separator)
                 .append(contentSelector);
 
-                if (shouldSave) {
-                    addESP({url: value1, selector: value2});
-                }
+                if (save)
+                    addEspVision({
+                        url: values[0],
+                        selector: values[1]
+                    });
             }
-
             else
                 return false;
     }
 
     var closeButton = $('<a>', {
-        className: 'close-button',
+        'class': 'closeButton',
         type: 'button',
-        href: '#'
+        href: '#',
+        tabIndex: -1
     })
 
     .bind('click keydown', function(e) {
         if (e.type === 'keydown' && e.keyCode != 13) return true;
         e.preventDefault();
+        e.stopPropagation();
         removeItem(e, type);
     })
     .appendTo(container);
 
-    if (lastEl != undefined)
-        listOfItems.insertBefore(container.get(0), lastEl);
-    else
-        listOfItems.insertBefore(container.get(0), null);
+    $('#add' + type.capitalize()).before(container);
+    incrementCount(type);
 }
 
+/**
+ * Delete item from UI and options
+ * @param {Event} e The event object of click
+ * @param {String} type Type of item. Valid values are disabledUrl, scraper and espVision
+ */
 function removeItem(e, type) {
-    var listOfItems;
-    var i = e.target.parentNode.id.substr(type.length);
+    var id = $(e.target).parent().attr('id');
+    if (id === undefined)
+        return;
 
-    switch (type)
-    {
-        case 'domain':
-            listOfItems = document.getElementById('domains');
-            prefs.disabledUrls.splice(i, 1);
-            saveOption('disabledUrls', prefs.disabledUrls);
-            break;
+    var index = id.substr(type.length);
+    var pluralType = type + 's';
 
-        case 'scraper':
-            listOfItems = document.getElementById('scraper-commands');
-            prefs.scrapers.splice(i, 1);
-            saveOption('scrapers', prefs.scrapers);
-            break;
+    // remove the entry and save options
+    options[pluralType].splice(index, 1);
+    saveOption(pluralType, options[pluralType]);
 
-        case 'esp':
-            listOfItems = document.getElementById('esp-modifiers');
-            prefs.espModifiers.splice(i, 1);
-            saveOption('espModifiers', prefs.espModifiers);
-    }
-
-    var el = document.getElementById(type + i);
-    listOfItems.removeChild(el);
+    // update the UI
+    $('#' + type + index).remove();
     updateItemIndexes(type);
-
-    return 0;
+    decrementCount(type);
 }
 
+/**
+ * Reset the ID's of items of a particular type. Usually called when an item is deleted
+ * @param {String} type Type of item. Valid values are disabledUrl, scraper and espVision
+ */
 function updateItemIndexes(type) {
-    var li = $('li.' + type);
-    var len = li.length;
+    var listOfItems = $('li.' + type);
+    var len = listOfItems.length;
+
     for (var i = 0; i < len; i++)
-    {
-        li[i].id = type + i;
-    }
+        listOfItems.get(i).id = type + i;
 }
 
-function filter(text) {
-    var index1 = 0;
-    var index2 = 0;
-    while (index1 != -1 || index2 != -1)
-    {
-        text = text.replace('&lt;', '<').replace('&gt;', '>');
-        index1 = text.indexOf('&lt;');
-        index2 = text.indexOf('&gt;');
-    }
-
-    return text;
-}
-
-// Validation Methods
-
-function validateURL(url)
-{
-    if (url == 'Page URL' || url == '')
+/**
+ * Check if the disabled URL is valid
+ * @param {String} url URL to check
+ * @returns {Boolean} Returns true if the disabled URL is valid
+ */
+function validateDisabledUrl(url) {
+    if (url === 'Page URL' || url === '')
         return false;
     return true;
 }
 
-function validateScraper(name, selector)
-{
-    // check that command name/selector should not be blank
-    if (name === '' || selector === '')
-        return false;
-    // check that command name does not conflict with the default scraper command names
-    if (name === 'h' || name === '?' || name === 'img' || name === 'a')
+/**
+ * Check if the scraper is valid
+ * @param {Array} values Array containing scraper command and selector, in that order
+ * @returns {Boolean} Returns true if the scraper is valid
+ */
+function validateScraper(values) {
+    var name = values[0];
+    var selector = values[1];
+
+    if (name === '' || name === '')
         return false;
     if (name.indexOf('`') != -1 || selector.indexOf('`') != -1)
         return false;
     return true;
 }
 
-function validateEspModifier(name, selector)
-{
-    // check that name/selector should not be blank
-    if (name === '' || selector === '')
+/**
+ * Check if the Esp Vision is valid
+ * @param {Array} values Array containing esp vision URL and selector, in that order
+ * @returns {Boolean} Returns true if the esp vision is valid
+ */
+function validateEspVision(values) {
+    if (values[0] === '' || values[1] === '')
         return false;
     return true;
 }
 
-// Backup Methods
-
+/**
+ * Show the Export Popup
+ */
 function exportSettings() {
     var text = 'Copy the contents of this text field, and save them to a textfile:';
     showBackupPopup(text, 'export');
-    $('#settingsText').text(translateForExport(prefs));
+    try {
+        $('#settingsText').text(JSON.stringify(options));
+    }
+    catch(e) {
+        console.log(e);
+    }
 }
 
+/**
+ * Show the Import Popup
+ */
 function importSettings() {
     var text = 'Paste previously exported settings here. This will overwrite all your current settings.';
     showBackupPopup(text, 'import');
     $('#settingsText').text('');
 }
 
+/**
+ * Show the Apply Dev Pack Popup
+ */
 function devPackCallback(data) {
     var text = 'A collection of our favorite scrapers and visions.';
     showBackupPopup(text, 'importDevPack');
     $('#settingsText').text(data);
 }
 
+/**
+ * Send GET request for the Dev Pack
+ */
 function importDevPack() {
     $.get('http://thegleebox.com/app/devpack.txt', devPackCallback);
 }
 
-// called when import button is clicked
+/**
+ * Parse and apply options from Import Popup
+ */
 function importAndApply() {
     try {
         var jsonString = $('#settingsText').get(0).value;
-        var tempPref = translateForImport(JSON.parse(jsonString));
-        // merge
-        // tempPref = mergeSettings(tempPref, prefs);
-        clearSettings();
-        initSettings(tempPref);
-        prefs = tempPref;
-        saveAllOptions();
+        var newOptions = JSON.parse(jsonString);
+
+        clearOptions();
+        initOptions(newOptions);
+        propagateOptions();
+
         $('#backupInfo').text('Settings successfully imported!');
         hideBackupPopup();
     }
 
     catch (e) {
+        console.log(e);
         $('#backupInfo').text('The import format is incorrect!');
         $('#settingsText').get(0).focus();
     }
 }
 
+/**
+ * Parse and apply options from Dev Pack Popup
+ */
 function applyDevPack() {
     try {
         var jsonString = $('#settingsText').get(0).value;
-        var tempPref = translateForImport(JSON.parse(jsonString));
+        var newOptions = JSON.parse(jsonString);
         // merge
-        tempPref = mergeSettings(tempPref, prefs);
-        prefs.scrapers = tempPref.scrapers;
-        prefs.espModifiers = tempPref.espModifiers;
-        clearSettings();
-        initSettings(prefs);
-        saveAllOptions();
+        newOptions = mergeSettings(newOptions, options);
+        options.scrapers = newOptions.scrapers;
+        options.espVisions = newOptions.espVisions;
+
+        clearOptions();
+        initOptions(options);
+        propagateOptions();
+
         $('#backupInfo').text('Developer Pack successfully imported!');
         hideBackupPopup();
     }
 
     catch (e) {
+        console.log(e);
         $('#backupInfo').text('The import format is incorrect!');
         $('#settingsText').get(0).focus();
     }
 }
 
+/**
+ * Merge options. Called during import
+ */
 function mergeSettings(a, b) {
     // for conflicting scrapers/visions, a takes priority
     // merging scrapers
@@ -341,40 +445,45 @@ function mergeSettings(a, b) {
     }
 
     // merging ESP visions
-    var a_len = a.espModifiers.length;
-    var b_len = b.espModifiers.length;
+    var a_len = a.espVisions.length;
+    var b_len = b.espVisions.length;
     for (var i = 0; i < b_len; i++) {
         var found = false;
         for (var j = 0; j < a_len; j++) {
-            if (b.espModifiers[i].url === a.espModifiers[j].url) {
+            if (b.espVisions[i].url === a.espVisions[j].url) {
                 found = true;
                 break;
             }
         }
-        if (!found) {
-            a.espModifiers.push(b.espModifiers[i]);
-        }
+
+        if (!found)
+            a.espVisions.push(b.espVisions[i]);
     }
 
     return a;
 }
 
-function showBackupPopup(infoText, func) {
+/**
+ * Show popup
+ * @param {String} infoText Description text for the popup
+ * @param {String} type Type of popup. Valid values are 'import', 'export' and 'importDevPack'
+ */
+function showBackupPopup(infoText, type) {
     var popup = $('#popup');
     if (popup.length === 0)
         initBackupPopup();
 
-    if (func === 'import') {
+    if (type === 'import') {
         $('#importButton').show();
         $('#exportButton').hide();
         $('#importDevPackButton').hide();
     }
-    else if (func === 'export') {
+    else if (type === 'export') {
         $('#importButton').hide();
         $('#exportButton').show();
         $('#importDevPackButton').hide();
     }
-    else if (func === 'importDevPack') {
+    else if (type === 'importDevPack') {
         $('#importDevPackButton').show();
         $('#importButton').hide();
         $('#exportButton').hide();
@@ -383,14 +492,16 @@ function showBackupPopup(infoText, func) {
     $('#backupInfo').html(infoText);
     $('#popup').fadeIn(200);
 
-    setTimeout(function()
-    {
+    setTimeout(function() {
         var field = $('#settingsText').get(0);
         Utils.selectAllText(field);
         field.focus();
     }, 0);
 }
 
+/**
+ * Initialize popup. Creates all the required UI elements
+ */
 function initBackupPopup() {
     var popup = $('<div/>', {
         id: 'popup'
@@ -400,18 +511,18 @@ function initBackupPopup() {
     $('<textarea id="settingsText"></textarea>').appendTo(popup);
 
     // import settings button
-    var importBtn = $('<input type="button" class="button" value="Import Settings" id="importButton" />')
+    var importBtn = $('<input type="button" value="Import Settings" id="importButton" />')
     .appendTo(popup)
     .click(importAndApply);
 
     // import dev pack button
-    var importDevPackBtn = $('<input type="button" class="button" value="Import Scrapers & Visions" id="importDevPackButton" />')
+    var importDevPackBtn = $('<input type="button" value="Import Scrapers & Visions" id="importDevPackButton" />')
     .appendTo(popup)
     .click(applyDevPack);
 
-    // copy to clipboard button (displayed in export)
-    if (copyToClipboard != undefined) {
-        $('<input type="button" class="button" value="Copy to Clipboard" id="exportButton" />')
+    // copy to clipboard button (displayed in export). Only for Chrome
+    if (IS_CHROME) {
+        $('<input type="button" value="Copy to Clipboard" id="exportButton" />')
         .appendTo(popup)
         .click(function(e) {
             copyToClipboard($('#settingsText')[0].value);
@@ -422,8 +533,7 @@ function initBackupPopup() {
 
     // add events
     $(document).keyup(function(e) {
-        if (e.keyCode === 27)
-        {
+        if (e.keyCode === 27) {
             var backupPopup = $('#popup');
             if (backupPopup.length != 0)
                 hideBackupPopup();
@@ -434,29 +544,38 @@ function initBackupPopup() {
         if (e.target.id === 'popup'
         || e.target.id === 'settingsText'
         || e.target.id === 'backupInfo'
-        || e.target.type === 'button') {
+        || e.target.type === 'button')
             return true;
-        }
 
         var backupPopup = $('#popup');
-
         if (backupPopup.length != 0)
             hideBackupPopup();
     });
 }
 
+/**
+ * Hide popup
+ */
 function hideBackupPopup() {
     $('#popup').fadeOut(200);
 }
 
-function clearSettings() {
-    // clearing disabled urls
-    var parent = document.getElementById('domains');
-    $('li.domain').remove();
+/**
+ * Remove all the disabled urls, scrapers and esp visions and reset their count
+ */
+function clearOptions() {
+    $('li.disabledUrl').remove();
     $('li.scraper').remove();
-    $('li.esp').remove();
+    $('li.espVision').remove();
+    setCount('disabledUrl', 0);
+    setCount('scraper', 0);
+    setCount('espVision', 0);
 }
 
+/**
+ * Attach listeners to UI controls
+ * Used to save options when a control's value changes
+ */
 function attachListeners() {
     // radio
     // for some reason, change event does not fire when using keyboard
@@ -464,33 +583,44 @@ function attachListeners() {
         if (e.type === 'keyup' && e.keyCode === 9)
             return true;
 
-        if (e.target.name === 'scrolling_key') {
+        if (e.target.name === 'scrollingKey') {
             changeScrollingKey(e.target.value);
             return true;
         }
-
         saveOption(e.target.name, e.target.value);
     });
 
     // checkbox
     $('input[type=checkbox]').bind('change', function(e) {
-        if (IS_CHROME) {
-            saveOption(e.target.name, (e.target.value) ? 1 : 0);
+        var value;
+        if (e.target.checked) {
+            if (e.target.value != 'on')
+                value = e.target.value;
+            else
+                value = true;
         }
-
         else {
-            saveOption(e.target.name, translateOptionValue(e.target.name, e.target.value));
+            var falseValue = e.target.getAttribute('data-falseValue');
+            if (falseValue)
+                value = falseValue;
+            else
+                value = false;
         }
+        saveOption(e.target.name, value);
     });
 
     // textfields
-    $('input[type=text]:not(#add_domain, #add-scraper-name, #add-scraper-selector, #add-esp-url, #add-esp-selector, #esp-search-field, #scraper-search-field)').keyup(function(e)
-    {
+    $('input[type=text]:not(#addDisabledUrlValue,\
+        #addScraperName,\
+        #addScraperSelector,\
+        #addEspUrl,\
+        #addEspSelector,\
+        #espSearch,\
+        #scraperSearch)').keyup(function(e) {
         if (e.keyCode === 9)
             return true;
 
-        if (textfieldTimer)
-        {
+        if (textfieldTimer) {
             clearTimeout(textfieldTimer);
             textfieldTimer = null;
         }
@@ -503,7 +633,7 @@ function attachListeners() {
     attachFilteringListeners();
 
     // attach listeners for editing
-    $('.scraper, .esp, .domain').live('click keydown', function(e) {
+    $('.scraper, .espVision, .disabledUrl').live('click keydown', function(e) {
         var $this = $(this);
 
         if ($this.hasClass('selected')) return true;
@@ -512,13 +642,17 @@ function attachListeners() {
 
         if ($this.hasClass('scraper'))
             editScraper($(this));
-        else if ($this.hasClass('esp'))
-            editESP($(this));
-        else if ($this.hasClass('domain'))
-            editDomain($(this));
+        else if ($this.hasClass('espVision'))
+            editEspVision($(this));
+        else if ($this.hasClass('disabledUrl'))
+            editDisabledUrl($(this));
     });
 }
 
+/**
+ * Change search engine
+ * @param {String} engine Search Engine URL to change to
+ */
 function changeSearchEngine(engine) {
     var value = 'http://www.google.com/search?q=';
 
@@ -529,105 +663,108 @@ function changeSearchEngine(engine) {
         case 'duckduckgo': value = 'http://duckduckgo.com/'; break;
     }
 
-    var ui = $('#search_engine');
-
-    ui.attr('value', value)
-    .keyup();
+    $('#searchEngine').attr('value', value);
+    saveOption('searchEngine', value);
 }
 
-function changeScrollingKey(keyset) {
+/**
+ * Change up / down scrolling key pair
+ * @param {String} keypair The keypair to change to. Valid ones are 'ws' and 'jk'
+ */
+function changeScrollingKey(keypair) {
     var up;
     var down;
-    if (keyset === 'ws') {
+    if (keypair === 'ws') {
         up = 87;
         down = 83;
     }
 
-    else if (keyset === 'jk') {
+    else if (keypair === 'jk') {
         up = 'K'.charCodeAt(0);
         down = 'J'.charCodeAt(0);
     }
 
-    if (IS_CHROME) {
-        saveOption('up_scrolling_key', up);
-        saveOption('down_scrolling_key', down);
-    }
-
-    else {
-        saveOption('upScrollingKey', up);
-        saveOption('downScrollingKey', down);
-    }
+    saveOption('upScrollingKey', up);
+    saveOption('downScrollingKey', down);
 }
 
+/**
+ * Attach listeners to search fields for scrapers and esp visions
+ */
 function attachFilteringListeners() {
     // scraper
-    $('#scraper-search-field')
+    $('#scraperSearch')
 
     .bind('search keyup', function(e) {
         filterScraper(e.target.value);
     })
 
-    .keyup(function(e)
-    {
-        if (e.keyCode === 27)
-        {
+    .keyup(function(e) {
+        if (e.keyCode === 27) {
             $(this).val('');
             filterScraper('');
         }
     });
 
     // esp
-    $('#esp-search-field')
+    $('#espSearch')
 
     .bind('search keyup', function(e) {
         filterESP(e.target.value);
     })
 
-    .keyup(function(e)
-    {
-        if (e.keyCode === 27)
-        {
+    .keyup(function(e) {
+        if (e.keyCode === 27) {
             $(this).val('');
             filterESP('');
         }
     });
 }
 
+/**
+ * Filter esp visions to only show those whose url contains a given string
+ * @param {String} value String against which esp urls should be compared
+ */
 function filterESP(value) {
-    var espDivs = $('.esp');
-    var urls = $('.esp-url');
-    var len = espDivs.length;
+    var $visions = $('.espVision');
+    var $urls = $('.espUrl');
+
+    var len = $visions.length;
     for (var i = 0; i < len; i++) {
-        var $div = $(espDivs[i]);
-        if (urls[i].innerHTML.indexOf(value) == -1)
-            $div.hide();
+        if ($urls.get(i).innerHTML.indexOf(value) === -1)
+            $($visions.get(i)).hide();
         else
-            $div.show();
+            $($visions.get(i)).show();
     }
 }
 
+/**
+ * Filter scrapers to only show those whose command contains a given string
+ * @param {String} value String against which scraper commands should be compared
+ */
 function filterScraper(value) {
-    var scraperDivs = $('.scraper, .default-scraper');
-    var names = $('.scraper-name, .default-scraper-name');
-    var len = scraperDivs.length;
+    var $scrapers = $('.scraper');
+    var $names = $('.scraperName');
+
+    var len = $scrapers.length;
     for (var i = 0; i < len; i++) {
-        var $div = $(scraperDivs[i]);
-        if (names[i].innerHTML.indexOf(value) == -1)
-            $div.hide();
+        if ($names.get(i).innerHTML.indexOf(value) === -1)
+            $($scrapers.get(i)).hide();
         else
-            $div.show();
+            $($scrapers.get(i)).show();
     }
 }
 
-// Initialize tabs
+/**
+ * Initialize tabs
+ */
 $(document).ready(function() {
     $('ul.menu li:first').addClass('tabActive').show();
     $('#options > div').hide();
     $('#basics').show();
 
     // Click event for tab menu items
-    $('ul.menu li').click(function()
-    {
+    $('ul.menu li:not(.menu-separator)').click(function() {
         $('ul.menu li').removeClass('tabActive');
         $(this).addClass('tabActive');
         $('#options > div').hide();
@@ -639,10 +776,13 @@ $(document).ready(function() {
     });
 });
 
-// smooth scrolling using arrow keys
+/**
+ * Add smooth scrolling using arrow keys
+ */
 window.addEventListener('keydown', function(e) {
-    if ((e.keyCode === 38 || e.keyCode === 40) && !Utils.elementCanReceiveUserInput(e.target))
-    {
+    if ((e.keyCode === 38 || e.keyCode === 40) &&
+    !Utils.elementCanReceiveUserInput(e.target)) {
+
         if (e.metaKey || e.ctrlKey || e.shiftKey)
             return true;
 
@@ -664,16 +804,18 @@ window.addEventListener('keydown', function(e) {
     }
 });
 
-/// edit methods
-
+/**
+ * Edit a scraper. Replaces the scraper command and selector with textareas and saves options on completion
+ * @param {jQuery} $scraper The scraper's li.scraper element
+ */
 function editScraper($scraper) {
     $scraper.addClass('selected');
 
-    var $scraperName = $scraper.find('.scraper-name');
-    var $scraperSel = $scraper.find('.scraper-sel');
+    var $scraperName = $scraper.find('.scraperName');
+    var $scraperSel = $scraper.find('.scraperSelector');
 
-    Utils.editElement($scraperSel);
-    Utils.editElement($scraperName);
+    Utils.editElement($scraperSel, {editFieldClass: 'gleebox-editing-field'});
+    Utils.editElement($scraperName, {editFieldClass: 'gleebox-editing-field'});
 
     function onEditingComplete(e) {
         var el = e.target;
@@ -686,10 +828,11 @@ function editScraper($scraper) {
         Utils.endEditing($scraperName);
         Utils.endEditing($scraperSel);
 
-        var id = $scraper.attr('id').slice(7);
-        prefs.scrapers[id].command = $scraperName.text();
-        prefs.scrapers[id].selector = $scraperSel.text();
-        saveOption('scrapers', prefs.scrapers);
+        var index = $scraper.attr('id').slice(7);
+        options.scrapers[index].command = $scraperName.text();
+        options.scrapers[index].selector = $scraperSel.text();
+
+        saveOption('scrapers', options.scrapers);
         $scraper.removeClass('selected');
 
         $(document).unbind('mousedown', onEditingComplete);
@@ -702,12 +845,15 @@ function editScraper($scraper) {
     $(document).bind('mousedown', onEditingComplete);
 }
 
-function editDomain($domain) {
-    $domain.addClass('selected');
+/**
+ * Edit a disabled URL. Replaces the URL with textarea and saves options on completion
+ * @param {jQuery} $disabledUrl The urls's li.disabledUrl element
+ */
+function editDisabledUrl($disabledUrl) {
+    $disabledUrl.addClass('selected');
 
-    var $domainName = $domain.find('.domain-name');
-
-    Utils.editElement($domainName);
+    var $disabledUrlValue = $disabledUrl.find('.disabledUrlValue');
+    Utils.editElement($disabledUrlValue, {editFieldClass: 'gleebox-editing-field'});
 
     function onEditingComplete(e) {
         var el = e.target;
@@ -717,33 +863,36 @@ function editDomain($domain) {
         if (e.type === 'mousedown' && el.className === 'gleebox-editing-field')
             return true;
 
-        Utils.endEditing($domainName);
+        Utils.endEditing($disabledUrlValue);
 
-        var id = $domain.attr('id').slice(6);
+        var index = $disabledUrl.attr('id').slice(11);
 
-        prefs.disabledUrls[id] = $domainName.text();
-        saveOption('disabledUrls', prefs.disabledUrls);
+        options.disabledUrls[index] = $disabledUrlValue.text();
+        saveOption('disabledUrls', options.disabledUrls);
 
-        $domain.removeClass('selected');
+        $disabledUrl.removeClass('selected');
 
         $(document).unbind('mousedown', onEditingComplete);
         $(document).unbind('keydown', onEditingComplete);
 
-        $domain.focus();
+        $disabledUrl.focus();
     }
 
     $(document).bind('keydown', onEditingComplete);
     $(document).bind('mousedown', onEditingComplete);
 }
 
-function editESP($esp) {
+/**
+ * Edit an Esp Vision. Replaces the vision url and selector with textareas and saves options on completion
+ * @param {jQuery} $esp The esp vision's li.espVision element
+ */
+function editEspVision($esp) {
     $esp.addClass('selected');
 
-    var $espURL = $esp.find('.esp-url');
-    var $espSel = $esp.find('.esp-sel');
-
-    Utils.editElement($espSel);
-    Utils.editElement($espURL);
+    var $espURL = $esp.find('.espUrl');
+    var $espSelector = $esp.find('.espSelector');
+    Utils.editElement($espSelector, {editFieldClass: 'gleebox-editing-field'});
+    Utils.editElement($espURL, {editFieldClass: 'gleebox-editing-field'});
 
     function onEditingComplete(e) {
         var el = e.target;
@@ -754,14 +903,14 @@ function editESP($esp) {
             return true;
 
         Utils.endEditing($espURL);
-        Utils.endEditing($espSel);
+        Utils.endEditing($espSelector);
 
-        var id = $esp.attr('id').slice(3);
+        var index = $esp.attr('id').slice(9);
 
-        prefs.espModifiers[id].url = $espURL.text();
-        prefs.espModifiers[id].selector = $espSel.text();
+        options.espVisions[index].url = $espURL.text();
+        options.espVisions[index].selector = $espSelector.text();
 
-        saveOption('espModifiers', prefs.espModifiers);
+        saveOption('espVisions', options.espVisions);
 
         $esp.removeClass('selected');
 
@@ -775,12 +924,69 @@ function editESP($esp) {
     $(document).bind('mousedown', onEditingComplete);
 }
 
+/**
+ * Revert shortcut key to default i.e. 'g'
+ */
 function setDefaultShortcutKey() {
-    $('[name=shortcut_key]').attr('value', 'g').keyup();
-    $('[name=shortcut_key_span]').text(71);
+    $('[name=shortcutKey]').attr('value', 'g').keyup();
+    $('[name=shortcutKeyCode]').text(71);
+    saveOption('shortcutKey', 71);
 }
 
+/**
+ * Revert tab manager shortcut key to default i.e. '.'
+ */
 function setDefaultTabShortcutKey() {
-    $('[name=tab_shortcut_key]').attr('value', '.').keyup();
-    $('[name=tab_shortcut_key_span]').text(190);
+    $('[name=tabManagerShortcutKey]').attr('value', '.').keyup();
+    $('[name=tabManagerShortcutKeyCode]').text(190);
+    saveOption('tabManagerShortcutKey', 190);
+}
+
+/**
+ * Modify the value for given option name. Used mostly for keycodes
+ */
+function translateOptionValue(name, value) {
+    switch (name) {
+        case 'shortcutKey': return $('[name=shortcutKeyCode]').text(); break;
+        case 'tabManagerShortcutKey': return $('[name=tabManagerShortcutKeyCode]').text(); break;
+    }
+    return value;
+}
+
+/**
+ * Saves option to background.html cache and localStorage. Also propagates changes to all open tabs
+ * @param {String} name Name of option
+ * @param {Object} value Value of option. Maybe of any type.
+ */
+function saveOption(name, value) {
+    value = translateOptionValue(name, value);
+    options[name] = value;
+    propagateOptions();
+}
+
+/**
+ * Increment count in UI of a type of items
+ * @param {String} type Type of item. 'disabledUrl', 'espVision' or 'scraper'
+ */
+function incrementCount(type) {
+    var $countEl = $('#' + type + 'Count');
+    $countEl.text(parseInt($countEl.text()) + 1);
+}
+
+/**
+ * Decrement count in UI of a type of items
+ * @param {String} type Type of item. 'disabledUrl', 'espVision' or 'scraper'
+ */
+function decrementCount(type) {
+    var $countEl = $('#' + type + 'Count');
+    $countEl.text(parseInt($countEl.text()) - 1);
+}
+
+/**
+ * Set count in UI of a type of items
+ * @param {String} type Type of item. 'disabledUrl', 'espVision' or 'scraper'
+ * @param {Integer} count Count to set
+ */
+function setCount(type, count) {
+    $('#' + type + 'Count').text(count);
 }
